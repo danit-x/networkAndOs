@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+lan-peer-chat.zip
+received_files/
