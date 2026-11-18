@@ -184,7 +184,13 @@ public final class PeerNode implements AutoCloseable {
         }
     }
 
-    private void remember(String id, String peerName, String host, long peerPort, boolean manual) {
+    /**
+     * Records contact with a peer. A peer can be reachable at several addresses (for example
+     * 127.0.0.1 via {@code /connect} and its LAN address via discovery), so the address is sticky:
+     * a manual contact sets it, and discovery only moves it for peers that were never added
+     * manually. Address-only updates are silent so the peer list does not flap between addresses.
+     */
+    void remember(String id, String peerName, String host, long peerPort, boolean manual) {
         if (id.isEmpty() || id.equals(peerId) || peerPort < 1 || peerPort > 65_535) {
             return;
         }
@@ -193,10 +199,10 @@ public final class PeerNode implements AutoCloseable {
         boolean changed;
         synchronized (lock) {
             Peer old = peers.get(id);
-            changed = old == null
-                    || !old.name().equals(shortName) || !old.host().equals(host) || old.port() != peerPort;
+            changed = old == null || !old.name().equals(shortName) || old.port() != peerPort;
+            String address = old == null || manual || !old.manual() ? host : old.host();
             boolean keepManual = manual || (old != null && old.manual());
-            peers.put(id, new Peer(id, shortName, host, (int) peerPort, now, keepManual));
+            peers.put(id, new Peer(id, shortName, address, (int) peerPort, now, keepManual));
         }
         if (changed) {
             emit(new PeerEvent.PeersChanged());

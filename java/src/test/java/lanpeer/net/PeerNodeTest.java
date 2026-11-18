@@ -144,6 +144,32 @@ class PeerNodeTest {
     }
 
     @Test
+    void manualAddressIsStickyAndAddressChangesAreSilent() {
+        BlockingQueue<PeerEvent> events = new LinkedBlockingQueue<>();
+        PeerNode node = new PeerNode("Carol", 0, 0, false, events::add);
+
+        node.remember("bob-id", "Bob", "192.168.1.5", 5003, false); // discovered
+        assertEquals(1, events.size(), "a new peer is announced");
+        events.clear();
+
+        node.remember("bob-id", "Bob", "127.0.0.1", 5003, true); // /connect 127.0.0.1
+        assertEquals("127.0.0.1", node.listPeers().getFirst().host());
+        assertTrue(node.listPeers().getFirst().manual());
+
+        node.remember("bob-id", "Bob", "192.168.1.5", 5003, false); // next broadcast
+        assertEquals("127.0.0.1", node.listPeers().getFirst().host(), "discovery must not override /connect");
+        assertTrue(events.isEmpty(), "address-only updates must not print 'Peer list changed'");
+
+        node.remember("bob-id", "Bobby", "127.0.0.1", 5003, false); // renamed
+        assertEquals(1, events.size(), "a rename is announced");
+
+        node.remember("dave-id", "Dave", "192.168.1.6", 5005, false);
+        node.remember("dave-id", "Dave", "192.168.1.9", 5005, false); // discovered peer moved (DHCP)
+        assertEquals("192.168.1.9", node.listPeers().stream()
+                .filter(peer -> peer.peerId().equals("dave-id")).findFirst().orElseThrow().host());
+    }
+
+    @Test
     void safeFilenameStripsDirectoriesAndRejectsDangerousNames() throws ProtocolException {
         assertEquals("passwd", PeerNode.safeFilename("../../etc/passwd"));
         assertEquals("y.txt", PeerNode.safeFilename("C:\\x\\y.txt"));
